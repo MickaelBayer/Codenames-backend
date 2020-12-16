@@ -4,11 +4,13 @@ from friend.views import (
     FriendRequestsSendersView,
     FriendRequestAcceptView,
     FriendRemoveView,
-    FriendRequestDeclineView
+    FriendRequestDeclineView,
+    FriendRequestCancelView
 )
 
 urlpatterns = [
     path('accept-friend-request/<friend_request_id>/', FriendRequestAcceptView.as_view(), name='accept-friend-request'),
+    path('friend-cancel/', FriendRequestCancelView.as_view(), name='cancel-friend-request'),
     path('friend-decline/<friend_request_id>/', FriendRequestDeclineView.as_view(), name='decline-friend-request'),
     path('friend-remove/', FriendRemoveView.as_view(), name='remove-friend'),
     path('friend-request/', FriendRequestCreateView.as_view(), name='friend-request'),

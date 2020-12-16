@@ -86,12 +86,12 @@ class FriendRequestCreateView(CreateAPIView):
                 })
             try:
                 # get any friend request to check if one already pending
-                friend_request = FriendRequest.objects.filter(sender=user, reciever=reciever)
+                friend_requests = FriendRequest.objects.filter(Q(sender=user, reciever=reciever) | Q(sender=reciever, reciever=user)).filter(is_active=True)
                 # find if any is acive
                 try:
-                    for request in friend_request:
+                    for request in friend_requests:
                         if request.is_active:
-                            raise Exception("You already send them a friend request.")
+                            raise Exception("A friend request already exist.")
                     # if none active, create a new friend request
                     friend_request = FriendRequest(sender=user, reciever=reciever)
                     friend_request.save()
@@ -146,22 +146,31 @@ class FriendRequestAcceptView(UpdateAPIView):
         if friend_request_id:
             try:
                 friend_request = FriendRequest.objects.get(pk=friend_request_id)
-                # confirm that is the correct request
-                if friend_request.reciever == user:
-                    # found it and accept it
-                    friend_request.accept()
-                    status_code = status.HTTP_201_CREATED
-                    response = JSONRenderer().render({
-                        'success': True,
-                        'status_code': status_code,
-                        'message': 'Friend request accepted.'
-                    })
+                # if this friend requste is not active, it should not be considered
+                if friend_request.is_active:
+                    # confirm that is the correct request
+                    if friend_request.reciever == user:
+                        # found it and accept it
+                        friend_request.accept()
+                        status_code = status.HTTP_201_CREATED
+                        response = JSONRenderer().render({
+                            'success': True,
+                            'status_code': status_code,
+                            'message': 'Friend request accepted.'
+                        })
+                    else:
+                        status_code = status.HTTP_403_FORBIDDEN
+                        response = JSONRenderer().render({
+                            'success': False,
+                            'status_code': status_code,
+                            'message': 'This friend request is not for you.'
+                        })
                 else:
-                    status_code = status.HTTP_403_FORBIDDEN
+                    status_code = status.HTTP_404_NOT_FOUND
                     response = JSONRenderer().render({
                         'success': False,
                         'status_code': status_code,
-                        'message': 'This friend request is not for you.'
+                        'message': 'Friend request not found.'
                     })
             except FriendRequest.DoesNotExist:
                 status_code = status.HTTP_404_NOT_FOUND
@@ -262,3 +271,42 @@ class FriendRequestDeclineView(UpdateAPIView):
         return Response(response, status=status_code)
 
 
+class FriendRequestCancelView(UpdateAPIView):
+
+    permission_classes = (IsAuthenticated,)
+    authentification_class = JSONWebTokenAuthentication
+
+    def post(self, request):
+        user = request.user
+        reciever_id = request.data['reciever_id']
+        response = None
+        status_code = None
+        if reciever_id:
+            reciever = Account.objects.get(pk=reciever_id)
+            try:
+                friend_requests = FriendRequest.objects.filter(sender=user, reciever=reciever, is_active=True)
+            except Exception as e:
+                status_code = status.HTTP_404_NOT_FOUND
+                response = JSONRenderer().render({
+                    'success': False,
+                    'status_code': status_code,
+                    'message': 'Friend request does not exist.'
+                })
+            # there should be only ever be one friend request in the set, but cancel in a loop, just in case
+            for request in friend_requests:
+                request.cancel()
+            status_code = status.HTTP_201_CREATED
+            response = JSONRenderer().render({
+                'success': True,
+                'status_code': status_code,
+                'message': 'Friend request cancelled successfully.'
+            })
+        else:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = JSONRenderer().render({
+                'success': False,
+                'status_code': status_code,
+                'message': 'Request body is missiong reciever_id.'
+            })
+        return Response(response, status=status_code)
+        
