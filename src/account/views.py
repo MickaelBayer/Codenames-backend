@@ -89,7 +89,6 @@ class AccountProfileView(RetrieveAPIView):
             except FriendList.DoesNotExist:
                 friend_list = FriendList(user=account)
                 friend_list.save()
-            print(friend_list)
             request_sent = None
             pending_friend_request_id = None
             data['is_self'] = True
@@ -106,7 +105,6 @@ class AccountProfileView(RetrieveAPIView):
                 'data': data
             })
         except Exception as e:
-            print(e)
             status_code = status.HTTP_404_NOT_FOUND
             response = JSONRenderer().render({
                 'success': False,
@@ -230,14 +228,23 @@ class AccountSearchView(RetrieveAPIView):
         if len(search_query) != 0:
             search_result = Account.objects.filter(Q(email__icontains=search_query) | Q(username__icontains=search_query)).distinct()
             for account in search_result:
-                print(account)
                 serialized_account = self.serializer_class(account).data
                 if account.id == request.user.id:
                     serialized_account['is_self'] = True
                 else:
                     serialized_account['is_self'] = False
-                serialized_account['is_friend'] = False  # No friend for now
+                # get the friend list of the authenticated user
+                try:
+                    friend_list = FriendList.objects.get(user=request.user)
+                except FriendList.DoesNotExist:
+                    # TODO check what we wanna do here
+                    serialized_account['is_friend'] = False
+                if account in friend_list.friends.all():
+                    serialized_account['is_friend'] = True
+                else: 
+                    serialized_account['is_friend'] = False
                 accounts.append(serialized_account)
+                accounts = sorted(accounts, key= lambda i: (i['username']))
         status_code = status.HTTP_200_OK  
         response = JSONRenderer().render({
                 'success': True,
@@ -263,8 +270,18 @@ class AccountAllView(RetrieveAPIView):
                 serialized_account['is_self'] = True
             else:
                 serialized_account['is_self'] = False
-            serialized_account['is_friend'] = False  # No friend for now
+            # get the friend list of the authenticated user
+            try:
+                friend_list = FriendList.objects.get(user=request.user)
+            except FriendList.DoesNotExist:
+                # TODO check what we wanna do here
+                serialized_account['is_friend'] = False
+            if account in friend_list.friends.all():
+                serialized_account['is_friend'] = True
+            else: 
+                serialized_account['is_friend'] = False
             accounts.append(serialized_account)
+            accounts = sorted(accounts, key= lambda i: (i['username']))
         status_code = status.HTTP_200_OK  
         response = JSONRenderer().render({
                 'success': True,
@@ -282,7 +299,6 @@ class AccountEditView(UpdateAPIView):
     serializer_class = AccountUpateSerializer
 
     def post(self, request):
-        print(request.data)
         serializer = self.serializer_class(request.user, data=request.data)
         serializer.is_valid(raise_exception=True)
         # delete old profile image so the name is preserved

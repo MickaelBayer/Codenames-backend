@@ -19,6 +19,77 @@ from friend.serializers import FriendRequestSerializer
 from django.db.models.query_utils import Q
 
 
+class FriendListView(RetrieveAPIView):
+
+    permission_classes = (IsAuthenticated,)
+    authentification_class = JSONWebTokenAuthentication
+    serialize_class = AccountSerializer
+
+    def get(self, request, user_id):
+        user = request.user
+        search_query = request.GET.get("q")
+        response = None
+        status_code = None
+        if user_id:
+            try:
+                this_user = Account.objects.get(pk=user_id)
+            except Account.DoesNotExist:
+                status_code = status.HTTP_404_NOT_FOUND
+                response = JSONRenderer().render({
+                    'success': False,
+                    'status_code': status_code,
+                    'message': "This user does not exist."
+                })
+            try:
+                friend_list = FriendList.objects.get(user=this_user)
+            except FriendList.DoesNotExist:
+                status_code = status.HTTP_404_NOT_FOUND
+                response = JSONRenderer().render({
+                    'success': False,
+                    'status_code': status_code,
+                    'message': f"Could not find a friend list for {this_user.username}."
+                })
+            # must be friend to see a users list
+            if user != this_user: # if it s not your friend list
+                if not user in friend_list.friends.all():
+                    status_code = status.HTTP_403_FORBIDDEN
+                    response = JSONRenderer().render({
+                        'success': False,
+                        'status_code': status_code,
+                        'message': "You must be friend with a user to access this."
+                    })
+            friends = []
+            auth_user_friend_list = FriendList.objects.get(user=user)
+            for friend in friend_list.friends.all():
+                if not search_query:
+                    account = self.serialize_class(friend).data
+                    account['is_friend'] = auth_user_friend_list.is_mutual_friend(friend)
+                    account['is_self'] = friend == user
+                    friends.append(account)
+                else:
+                    if search_query in friend.username or search_query in friend.email:
+                        account = self.serialize_class(friend).data
+                        account['is_friend'] = auth_user_friend_list.is_mutual_friend(friend)
+                        account['is_self'] = friend == user
+                        friends.append(account)
+            friends = sorted(friends, key= lambda i: (i['username']))
+            status_code = status.HTTP_200_OK
+            response = JSONRenderer().render({
+                'success': True,
+                'status_code': status_code,
+                'message': "Friend list fetched successfully.",
+                'friends': friends
+            })
+        else:
+            status_code = status.HTTP_400_BAD_REQUEST
+            response = JSONRenderer().render({
+                'success': False,
+                'status_code': status_code,
+                'message': 'Missing patrameters in url.'
+            })
+        return Response(response, status=status_code)
+
+
 class FriendRequestsSendersView(RetrieveAPIView):
 
     permission_classes = (IsAuthenticated,)
@@ -47,6 +118,7 @@ class FriendRequestsSendersView(RetrieveAPIView):
             datas = self.serializer_class(friend_requests, many=True).data
             for data in datas:
                 data['sender'] = AccountSerializer(Account.objects.get(pk=data['sender'])).data
+            datas = sorted(datas, key= lambda i: (i['sender']['username']))
             status_code = status.HTTP_200_OK
             response = JSONRenderer().render({
                 'success': True,
