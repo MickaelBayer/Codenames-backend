@@ -5,12 +5,15 @@ from friend.models import FriendList, FriendRequest
 class FriendListAdmin(admin.ModelAdmin):
 
     list_filter = ['user']
-    list_display = ['user']
+    list_display = ['user', 'get_friends']
     search_fields = ['user']
     readonly_fields = ['user']
 
     class Meta:
         model = FriendList
+    
+    def get_friends(self, obj):
+        return ", ".join([friend.username for friend in obj.friends.all()])
 
 admin.site.register(FriendList, FriendListAdmin)
 
