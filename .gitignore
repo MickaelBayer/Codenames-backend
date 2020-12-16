@@ -1,0 +1,5 @@
+db/
+redis_db/
+media.*
+static.*
+venv/
