@@ -1,7 +1,7 @@
 db/
 redis_db/
-media.*
-static.*
-media_cdn.*
-static_cdn.*
+src/media
+static
+src/media_cdn
+src/static_cdn
 venv/
