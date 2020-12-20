@@ -59,7 +59,7 @@ class AccountUpateSerializer(serializers.ModelSerializer):
 
     email = serializers.EmailField(max_length=100)
     username = serializers.CharField(max_length=100)
-    profile_image = serializers.ImageField(max_length=255)
+    profile_image = serializers.ImageField(max_length=255, required=False, allow_empty_file=True)
     hide_email = serializers.BooleanField()
     
     class Meta:

@@ -299,10 +299,11 @@ class AccountEditView(UpdateAPIView):
     serializer_class = AccountUpateSerializer
 
     def post(self, request):
+        if 'profile_image' in request.data:
+            request.user.profile_image.delete()
         serializer = self.serializer_class(request.user, data=request.data)
         serializer.is_valid(raise_exception=True)
         # delete old profile image so the name is preserved
-        request.user.profile_image.delete()
         serializer.save()
         status_code = status.HTTP_201_CREATED
         response = JSONRenderer().render({
