@@ -27,7 +27,7 @@ SECRET_KEY = 't20o%ux(q0si9f71)$lg==#1_1$f+qneg2l^a3^ch*2y-m1r3+'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = [] # our domain for production
 
 AUTH_USER_MODEL = "account.Account"
 AUTHENTICATION_BACKENDS = (
@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'rest_framework_jwt',
     'account',
     'friend',
+    'public_chat',
     'corsheaders',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -49,6 +50,9 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.humanize',
+    'channels',
+    'channels_redis',
 ]
 
 MIDDLEWARE = [
@@ -82,6 +86,28 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'codenames_api.wsgi.application'
 
+ASGI_APPLICATION = 'codenames_api.routing.application'
+
+
+# Redis
+# https://docs.djangoproject.com/en/2.2/ref/settings/#databases
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            "hosts": [('127.0.0.1', 6379)],
+        },
+    },
+}
+
+# CHANNEL_LAYERS = {
+#     'default': {
+#         'BACKEND': 'channels_redis.core.RedisChannelLayer',
+#         'CONFIG': {
+#             'hosts': ['127.0.0.1', '6379'],
+#         },
+#     },
+# }
 
 # Database
 # https://docs.djangoproject.com/en/2.2/ref/settings/#databases
@@ -98,17 +124,6 @@ DATABASES = {
         'HOST': 'localhost',
         'PORT': '5432',
     }
-}
-
-# Redis
-# https://docs.djangoproject.com/en/2.2/ref/settings/#databases
-CHANNEL_LAYERS = {
-    'default': {
-        'BACKEND': 'channels_redis.core.RedisChannelLayer',
-        'CONFIG': {
-            "hosts": [('127.0.0.1', 6379)],
-        },
-    },
 }
 
 # Password validation
