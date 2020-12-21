@@ -11,7 +11,7 @@ class PrivateChatRoom(models.Model):
     is_active = models.BooleanField(default=True)
 
     def __str__(self):
-        return f"Private chat between {user1} and {user2}"
+        return f"Private chat between {self.user1} and {self.user2}"
     
     @property
     def group_name(self):
