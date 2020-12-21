@@ -78,7 +78,7 @@ class PublicChatConsumer(AsyncJsonWebsocketConsumer):
             if str(room_id) != str(self.room_id):
                 raise ClientError(403, "Room acces denied.")
             if not is_authenticated(self.scope['user']):
-                raise ClientError(403, "Yoi must be authenticated to chat.")
+                raise ClientError(403, "You must be authenticated to chat.")
         else:
             raise ClientError(403, "Room acces denied.")
         room = await get_room_or_error(room_id)
@@ -232,7 +232,6 @@ def create_public_room_chat_message(room, user, message):
 
 @database_sync_to_async
 def get_room_chat_message(room, page_number):
-    print('in ge room messages')
     try:
         qs = PublicRoomChatMessage.objects.by_room(room)
         p = Paginator(qs, DEFAULT_ROOM_CHAT_MESSAGE_PAGE_SIZE)
