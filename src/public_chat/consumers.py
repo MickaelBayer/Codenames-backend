@@ -1,14 +1,20 @@
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
+
+from django.core.paginator import Paginator
+from django.core.serializers import serialize
+import json
+from public_chat.serializers import LazyRoomChatMessageEncoder, calculate_timestamp
+
 from django.contrib.auth import get_user_model
-from django.contrib.humanize.templatetags.humanize import naturalday
 from django.utils import timezone
-from datetime import datetime
 from public_chat.models import PublicChatRoom, PublicRoomChatMessage
+from public_chat.constants import (
+    MSG_CONNECTED_USER_COUNT,
+    MSG_MESSAGE_TYPE,
+    DEFAULT_ROOM_CHAT_MESSAGE_PAGE_SIZE
+)
 
-
-
-NEW_MESSAGE_TYPE = 0
 
 user = get_user_model()
 
@@ -51,6 +57,14 @@ class PublicChatConsumer(AsyncJsonWebsocketConsumer):
                 await self.join_room(content['room_id'])
             elif command == 'leave':
                 await self.leave_room(content['room_id'])
+            elif command == 'get_chatroom_messages':
+                room = await get_room_or_error(content['room_id'])
+                payload = await get_room_chat_message(room, content['page_number'])
+                if payload != None:
+                    payload = json.loads(payload)
+                    await self.send_messages_payload(payload['messages'], payload['new_page_number'])
+                else:
+                    raise ClientError(204, "Something went wrong retrieving chatroom messages.")
         except ClientError as e:
             await self.handle_client_error(e)
         
@@ -88,7 +102,7 @@ class PublicChatConsumer(AsyncJsonWebsocketConsumer):
         print("[PublicChatConsumer] chat_message from user #: " + str(event['user_id']))
         timestamp = calculate_timestamp(timezone.now())
         await self.send_json({
-            "message_type": NEW_MESSAGE_TYPE,
+            "message_type": MSG_MESSAGE_TYPE,
             "profile_image": event['profile_image'],
             "username": event['username'],
             "user_id": event['user_id'],
@@ -118,6 +132,14 @@ class PublicChatConsumer(AsyncJsonWebsocketConsumer):
             "join": str(room_id),
             "username": self.scope['user'].username
         })
+        # send the num of connected user to everyone
+        await self.channel_layer.group_send(
+            room.group_name,
+            {
+                "type": "connected.user.count",
+                "connected_user_count": get_num_connected_users(room)
+            }
+        )
     
     async def leave_room(self, room_id):
         """
@@ -135,9 +157,26 @@ class PublicChatConsumer(AsyncJsonWebsocketConsumer):
         self.room_id = None
         # Remove them to the group so they no longer receive room messages
         await self.channel_layer.group_discard(room.group_name, self.channel_name)
+        # send the num of connected user to everyone
+        await self.channel_layer.group_send(
+            room.group_name,
+            {
+                "type": "connected.user.count",
+                "connected_user_count": get_num_connected_users(room)
+            }
+        )
     
 
-
+    async def send_messages_payload(self, messages, new_page_number):
+        """
+        Send a payload of messages to the ui
+        """
+        print("[PublicChatConsumer][send_messages_payload] sending...")
+        await self.send_json({
+            "messages_payload": "messages_payload",
+            "messages": messages,
+            "new_page_number": new_page_number,
+        })
 
     async def handle_client_error(self, error):
         """
@@ -150,6 +189,16 @@ class PublicChatConsumer(AsyncJsonWebsocketConsumer):
             # send directly to the client, not the group
             await self.send_json(errorData)
         return
+
+    async def connected_user_count(self, event):
+        """
+        Called to send the number of connected users to the room.
+        """
+        print("[PublicChatConsumer][connected_user_count] " + str(event['connected_user_count']))
+        await self.send_json({
+            "message_type": MSG_CONNECTED_USER_COUNT,
+            "connected_user_count": event['connected_user_count']
+        })
 
 
 def is_authenticated(user):
@@ -181,6 +230,33 @@ def create_public_room_chat_message(room, user, message):
     return PublicRoomChatMessage.objects.create(user=user, room=room, content=message)
 
 
+@database_sync_to_async
+def get_room_chat_message(room, page_number):
+    print('in ge room messages')
+    try:
+        qs = PublicRoomChatMessage.objects.by_room(room)
+        p = Paginator(qs, DEFAULT_ROOM_CHAT_MESSAGE_PAGE_SIZE)
+
+        payload = {}
+        new_page_number = int(page_number)
+        if new_page_number <= p.num_pages:  # if we have not reached the last page of result + 1
+            new_page_number += 1
+            serializer = LazyRoomChatMessageEncoder()
+            payload['messages'] = serializer.serialize(p.page(page_number).object_list)
+        else:
+            payload['messages'] = None
+        payload['new_page_number'] = new_page_number
+        return json.dumps(payload)
+    except Exception as e:
+        print(f"EXCEPTION: {str(e)}")
+        return None
+
+def get_num_connected_users(room):
+    if room.users:
+        return len(room.users.all())
+    return 0
+
+
 class ClientError(Exception):
     """
     Custom exception class that is caught by the websocket receive()
@@ -192,23 +268,3 @@ class ClientError(Exception):
         self.code = code
         if message:
             self.message = message
-
-
-def calculate_timestamp(timestamp):
-    """
-    1. Today or yesterday:
-        - ex: 'today at 10:56 AM'
-        - ex: 'yesterday at 5:19 PM'
-    2. other:
-        - ex: '05/06/2020'
-    """
-    # Today or yesterday
-    if (naturalday(timestamp) == "today" or naturalday(timestamp) == "yesterday"):
-        str_time = datetime.strftime(timestamp, "%I:%M %p")  # see datetime doc
-        str_time = str_time.strip("0")
-        ts = f"{naturalday(timestamp)} at {str_time}"
-    # other days
-    else:
-        str_time = datetime.strftime(timestamp, "%m/%d/%Y")
-        ts = f"{str_time}"
-    return ts
