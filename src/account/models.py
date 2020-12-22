@@ -1,6 +1,9 @@
 from django.db import models
+from django.db.models.signals import post_save
+from django.dispatch import receiver
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager
 import json
+from friend.models import FriendList
 
 
 class MyAccountManager(BaseUserManager):
@@ -74,3 +77,8 @@ class Account(AbstractBaseUser):
         return the name of the uploaded file
         """
         return str(self.profile_image)[str(self.profile_image).index(f'profile_image{str(self.pk)}/'):]
+
+
+@receiver(post_save, sender=Account)
+def user_save(sender, instance, **kwargs):
+    FriendList.objects.get_or_create(user=instance)
