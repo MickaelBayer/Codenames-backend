@@ -1,4 +1,4 @@
-from public_chat.constants import MSG_MESSAGE_TYPE
+from public_chat.constants import MSG_TYPE_NEW_MESSAGE
 from django.core.serializers.python import Serializer
 from django.contrib.humanize.templatetags.humanize import naturalday
 from datetime import datetime
@@ -8,7 +8,7 @@ class LazyRoomChatMessageEncoder(Serializer):
 
     def get_dump_object(self, obj):
         dumped_obj = {}
-        dumped_obj.update({'message_type': MSG_MESSAGE_TYPE})
+        dumped_obj.update({'message_type': MSG_TYPE_NEW_MESSAGE})
         dumped_obj.update({'user_id': obj.user.id})
         dumped_obj.update({'username': obj.user.username})
         dumped_obj.update({'message': obj.content})

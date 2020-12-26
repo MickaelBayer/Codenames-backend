@@ -21,7 +21,8 @@ from django.conf.urls.static import static
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/account/', include('account.urls')),
-    path('api/friend/', include('friend.urls'))
+    path('api/friend/', include('friend.urls')),
+    path('api/private-chat/', include('private_chat.urls')),
 ]
 
 if settings.DEBUG:

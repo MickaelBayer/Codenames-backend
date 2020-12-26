@@ -8,9 +8,9 @@ from private_chat.models import PrivateChatRoom, PrivateRoomChatMessage
 
 class PrivateChatRoomAdmin(admin.ModelAdmin):
 
-    list_filter = ['id', 'user1', 'user2']
-    search_fields = ['id', 'user1__username', 'user2__username', 'user1__email', 'user2__email']
-    list_display = ['id', 'user1', 'user2']
+    list_filter = ['id', 'title']
+    search_fields = ['id', 'title']
+    list_display = ['id', 'title', 'chat_image']
     readonly_fields = ['id',]
 
     class Meta:

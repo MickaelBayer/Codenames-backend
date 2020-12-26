@@ -2,21 +2,18 @@ from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 
 from django.core.paginator import Paginator
-from django.core.serializers import serialize
 import json
 from public_chat.serializers import LazyRoomChatMessageEncoder, calculate_timestamp
 
-from django.contrib.auth import get_user_model
 from django.utils import timezone
 from public_chat.models import PublicChatRoom, PublicRoomChatMessage
 from public_chat.constants import (
-    MSG_CONNECTED_USER_COUNT,
-    MSG_MESSAGE_TYPE,
+    MSG_TYPE_CONNECTED_USER_COUNT,
+    MSG_TYPE_NEW_MESSAGE,
     DEFAULT_ROOM_CHAT_MESSAGE_PAGE_SIZE
 )
+from private_chat.exceptions import ClientError
 
-
-user = get_user_model()
 
 
 class PublicChatConsumer(AsyncJsonWebsocketConsumer):
@@ -102,7 +99,7 @@ class PublicChatConsumer(AsyncJsonWebsocketConsumer):
         print("[PublicChatConsumer] chat_message from user #: " + str(event['user_id']))
         timestamp = calculate_timestamp(timezone.now())
         await self.send_json({
-            "message_type": MSG_MESSAGE_TYPE,
+            "message_type": MSG_TYPE_NEW_MESSAGE,
             "profile_image": event['profile_image'],
             "username": event['username'],
             "user_id": event['user_id'],
@@ -196,7 +193,7 @@ class PublicChatConsumer(AsyncJsonWebsocketConsumer):
         """
         print("[PublicChatConsumer][connected_user_count] " + str(event['connected_user_count']))
         await self.send_json({
-            "message_type": MSG_CONNECTED_USER_COUNT,
+            "message_type": MSG_TYPE_CONNECTED_USER_COUNT,
             "connected_user_count": event['connected_user_count']
         })
 
@@ -255,15 +252,3 @@ def get_num_connected_users(room):
         return len(room.users.all())
     return 0
 
-
-class ClientError(Exception):
-    """
-    Custom exception class that is caught by the websocket receive()
-    handler and translated into a send back to the client
-    """
-
-    def __init__(self, code, message):
-        super().__init__(code)
-        self.code = code
-        if message:
-            self.message = message
